@@ -1,0 +1,159 @@
+---
+title: "Kpler Technical Exercise"
+author: "Teodoro Mounier Tebas"
+format:
+  html:
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    theme: cosmo
+    fontsize: 1em
+    linestretch: 1.7
+    grid:
+      sidebar-width: 300px
+      body-width: 1000px
+      margin-width: 200px
+      gutter-width: 1.5rem
+execute:
+  echo: true
+  warning: false
+  message: false
+  error: false
+editor: visual
+---
+
+<br>
+
+## Instructions
+
+#### **Objective**
+
+Evaluate the candidate’s ability to build a lightweight internal tool for automating a common data wrangling task.
+
+<br>
+
+#### **Background & Context**
+
+You’re supporting the **Refined Products team** at Kpler and are asked to streamline a **manual product classification task**. Analysts currently spend time standardizing product names from various sources into Kpler’s internal naming convention — your goal is to automate this.
+
+<br>
+
+#### **Provided Datasets**
+
+-   **raw_product.csv**: A table of unstructured product labels from various providers.
+-   **product_alias.csv**: A product alias mapping table used at Kpler.
+
+<br>
+
+#### **Your Task**
+
+Build a User Interface through a web app that enables the following:
+
+1.  **Data Normalization**
+
+    -   Use `product_alias.csv` to map and normalize raw product names from `raw_product.csv`.
+    -   Generate a cleaned version of the dataset with the mapped product names.
+
+2.  **Interactive UI Features**
+
+    The app should allow users to:
+
+    -   Upload a raw product file (with a similar structure to `raw_product.csv`)
+    -   Preview the cleaned data after alias mapping
+    -   Download the normalized dataset as a CSV
+
+3.  **Handling Unmapped Values**
+
+    -   Detect and clearly display any product names from the raw dataset that do **not** match entries in the alias mapping table.
+
+    -   Categorize these unmapped values into meaningful groups, such as:
+
+        -   **Likely valid products** (potential matches worth reviewing)
+        -   **Invalid entries** (e.g., misspellings, test strings, or irrelevant data to discard)
+
+    -   Provide an interface for analysts to:
+
+        -   Manually assign these to a Kpler product name
+        -   Export the final matched output (including these manual corrections)
+
+**Optional Challenge (Bonus)**
+
+Enhance the tool by:
+
+-   Implementing a **fuzzy matching** step for unmapped values
+-   Letting the user **review and approve/reject fuzzy matches** before final export
+
+<br>
+
+<br>
+
+## Exploratory Data Analysis (EDA)
+
+#### **Load necessary libraries**
+
+```{r}
+library(tidyverse)
+library(summarytools)
+```
+
+<br>
+
+#### **Import Data and First Check**
+
+```{r}
+# read data:
+alias_product <- read_csv("data/raw_data/product_alias.csv")
+raw_product <- read_csv("data/raw_data/raw_product.csv")
+```
+
+We can use `glimpse()` to get an overview of the structure (number of rows and columns and their types).
+
+::: panel-tabset
+##### alias_product
+
+```{r}
+glimpse(alias_product)
+```
+
+##### raw_product
+
+```{r}
+glimpse(raw_product)
+```
+:::
+
+We can use `dfSummary()` to get a summary of the data, including the number of unique values, missing values, and the most frequent values.
+
+::: panel-tabset
+##### alias_product
+
+```{r}
+print(dfSummary(alias_product, style = "grid", graph.magnif = 1, 
+                valid.col = FALSE, varnumbers = FALSE, tmp.img.dir = "/tmp", 
+                max.distinct.values = 5, headings = TRUE, method = "render", 
+                col.widths  = c(300, 200, 100, 50, 20)),
+      method = "render")
+```
+
+##### raw_product
+
+```{r}
+print(dfSummary(raw_product, style = "grid", graph.magnif = 1, 
+                valid.col = FALSE, varnumbers = FALSE, tmp.img.dir = "/tmp", 
+                max.distinct.values = 5, headings = TRUE, method = "render", 
+                col.widths  = c(300, 200, 100, 50, 20)),
+      method = "render")
+```
+:::
+
+<br>
+
+#### **First Clean**
+
+After the check we will:
+
+1.  Remove `{r} sum(duplicated(raw_product))` duplicates from the `raw_product` table.
+
+2.  Convert all the **IDs columns** to character. (best practice to have IDs as character)
+
+3.  `mapped_product` to upper case to ensure consistency for the mapping.
