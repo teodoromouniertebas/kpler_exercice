@@ -87,13 +87,18 @@ Enhance the tool by:
 
 <br>
 
-## Exploratory Data Analysis (EDA)
+## Exploratory Data Analysis
 
 #### **Load necessary libraries**
 
 ```{r}
-library(tidyverse)
-library(summarytools)
+#| label: import libraries
+
+library(tidyverse) # to manipulate the data
+library(summarytools) # to summarize the data
+library(kableExtra)  # to create nice tables
+library(stringdist)  # to calculate the string distance
+library(fuzzyjoin) # to join dataframes based on string distance 
 ```
 
 <br>
@@ -101,7 +106,8 @@ library(summarytools)
 #### **Import Data and First Check**
 
 ```{r}
-# read data:
+#| label: import data
+
 alias_product <- read_csv("data/raw_data/product_alias.csv")
 raw_product <- read_csv("data/raw_data/raw_product.csv")
 ```
@@ -112,12 +118,16 @@ We can use `glimpse()` to get an overview of the structure (number of rows and c
 ##### alias_product
 
 ```{r}
+#| label: glimpse alias_product
+
 glimpse(alias_product)
 ```
 
 ##### raw_product
 
 ```{r}
+#| label: glimpse raw_product
+
 glimpse(raw_product)
 ```
 :::
@@ -128,6 +138,8 @@ We can use `dfSummary()` to get a summary of the data, including the number of u
 ##### alias_product
 
 ```{r}
+#| label: Summary of alias_product
+
 print(dfSummary(alias_product, style = "grid", graph.magnif = 1, 
                 valid.col = FALSE, varnumbers = FALSE, tmp.img.dir = "/tmp", 
                 max.distinct.values = 5, headings = TRUE, method = "render", 
@@ -138,6 +150,8 @@ print(dfSummary(alias_product, style = "grid", graph.magnif = 1,
 ##### raw_product
 
 ```{r}
+#| label: Summary of raw_product
+
 print(dfSummary(raw_product, style = "grid", graph.magnif = 1, 
                 valid.col = FALSE, varnumbers = FALSE, tmp.img.dir = "/tmp", 
                 max.distinct.values = 5, headings = TRUE, method = "render", 
@@ -148,12 +162,123 @@ print(dfSummary(raw_product, style = "grid", graph.magnif = 1,
 
 <br>
 
-#### **First Clean**
+#### **Clean the data before the mapping**
 
-After the check we will:
+After the check we need to clean the data before we can use it for the mapping. We will perform the following steps:
 
-1.  Remove `{r} sum(duplicated(raw_product))` duplicates from the `raw_product` table.
+1.  Remove the **`{r} sum(duplicated(raw_product))` duplicates** and **`{r} sum(is.na(raw_product$raw_product))` missing values** from the `raw_product` table.
 
 2.  Convert all the **IDs columns** to character. (best practice to have IDs as character)
 
-3.  `mapped_product` to upper case to ensure consistency for the mapping.
+::: panel-tabset
+##### alias_product
+
+```{r}
+#| label: convert to character
+
+alias_product_c <- alias_product |> 
+  mutate(
+      alias_id = as.character(alias_id),
+      provider_id = as.character(provider_id),
+      product_id = as.character(product_id))
+
+glimpse(alias_product_c)
+```
+
+##### raw_product
+
+```{r}
+#| label: remove duplicates
+
+raw_product_c <- raw_product |> 
+  filter(!is.na(raw_product)) |> 
+  distinct() |> 
+  mutate(provider_id = as.character(provider_id)) |> 
+  arrange(raw_product)
+
+glimpse(raw_product_c)
+```
+:::
+
+<br>
+
+<br>
+
+## Task
+
+To build an application that automates the data cleaning and manipulation process, we’ll start by handling the task for this specific case. Then, we’ll turn each step into reusable functions that can be integrated into the application. That’s why we’ll begin with the first part: data normalization, followed by the third part: handling unmapped data, before moving on to developing the full application.
+
+<br>
+
+#### **Data Normalization**
+
+First, we will **join** the `raw_product_c` dataframe with the `alias_product_c` dataframe. Then, we will **filter** the products into two separate dataframes, one containing the products that have been mapped, and another for those that haven't, for use in the third part of the task.
+
+::: panel-tabset
+##### Mapped products
+
+```{r}
+#| label: Left Join
+
+alias_product_c <- alias_product_c |> 
+  select(alias_id, alias, mapped_product, product_id) |> 
+  distinct()
+
+# left join the raw_product_c with the alias_product_c:
+mapped_products <- raw_product_c |> left_join(alias_product_c, 
+                             by = c("raw_product" = "alias")) |> 
+  filter(!is.na(mapped_product))
+
+# table of the mapped products
+kbl(mapped_products) |> 
+  kable_styling(fixed_thead = T,
+                bootstrap_options = c("hover")) |> 
+  scroll_box(width = "100%", height = "500px")
+```
+
+##### Unmapped products
+
+```{r}
+#| label: unnmapped values after left join
+
+# unmapped products
+unmapped_products <- raw_product_c |> left_join(alias_product_c, 
+                             by = c("raw_product" = "alias")) |> 
+  filter(is.na(mapped_product))
+
+# table of the mapped products
+kbl(unmapped_products) |> 
+  kable_styling(fixed_thead = T,
+                bootstrap_options = c("hover")) |> 
+  scroll_box(width = "100%", height = "500px")
+```
+:::
+
+<br>
+
+#### **Conclusion after mapping**
+
+After the mapping, we have two dataframes:
+
+-   `mapped_products` : dataframe with the **`{r} nrow(mapped_products)` products** that have been successfully mapped to Kpler's internal naming convention.
+
+-   `unmapped_products` : dataframe with the rest of the products that could not be mapped representing **`{r} nrow(unmapped_products)` products**.
+
+<br>
+
+#### **Handling unmapped values**
+
+We will now categorize the unmapped products into two groups based on a decision rule that was arbitrarily created and can by modified later if needed.
+
+The rule is as follows:
+
+-   **Likely valid products**: We will consider two product names to be similar if they differ by 1 to 5 characters.
+
+-   **Invalid entries**: We will consider two product names to be invalid if they differ by more than 5 characters.
+
+```{r}
+#| label: categorize unmapped products
+
+data <- unmapped_products |> 
+  stringdist_left_join(alias_product_c, by = c("raw_product" = "alias"), max_dist = 5, distance_col = "distance")
+```
