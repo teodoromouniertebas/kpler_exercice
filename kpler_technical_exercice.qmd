@@ -3,6 +3,8 @@ title: "Kpler Technical Exercise"
 author: "Teodoro Mounier Tebas"
 format:
   html:
+    code-fold: show
+    code-tools: true
     toc: true
     toc-location: left
     toc-depth: 2
@@ -19,6 +21,7 @@ execute:
   warning: false
   message: false
   error: false
+  freeze: auto
 editor: visual
 ---
 
@@ -233,7 +236,7 @@ mapped_products <- raw_product_c |> left_join(alias_product_c,
 kbl(mapped_products) |> 
   kable_styling(fixed_thead = T,
                 bootstrap_options = c("hover")) |> 
-  scroll_box(width = "100%", height = "500px")
+  scroll_box(height = "500px")
 ```
 
 ##### Unmapped products
@@ -250,7 +253,7 @@ unmapped_products <- raw_product_c |> left_join(alias_product_c,
 kbl(unmapped_products) |> 
   kable_styling(fixed_thead = T,
                 bootstrap_options = c("hover")) |> 
-  scroll_box(width = "100%", height = "500px")
+  scroll_box(height = "500px")
 ```
 :::
 
@@ -260,25 +263,78 @@ kbl(unmapped_products) |>
 
 After the mapping, we have two dataframes:
 
--   `mapped_products` : dataframe with the **`{r} nrow(mapped_products)` products** that have been successfully mapped to Kpler's internal naming convention.
+-   `mapped_products` : dataframe with the **`{r} nrow(mapped_products)`** products that have been successfully mapped to Kpler's internal naming convention.
 
--   `unmapped_products` : dataframe with the rest of the products that could not be mapped representing **`{r} nrow(unmapped_products)` products**.
+-   `unmapped_products` : dataframe with the rest of the products that could not be mapped representing **`{r} nrow(unmapped_products)`** products.
 
 <br>
 
 #### **Handling unmapped values**
 
-We will now categorize the unmapped products into two groups based on a decision rule that was arbitrarily created and can by modified later if needed.
+We will use the `fuzzjoin` library to suggest matches between unmatched product names and known aliases using string similarity. This will help us categorize unmapped products into two groups, **likely valid products** and **invalid entries**.
 
-The rule is as follows:
+We will use the Jaro-Winkler distance method to find similar strings. The `stringdist_left_join()` function will be used to join the `unmapped_products` dataframe with the `alias_product_c` dataframe based on the similarity of the product names.
 
--   **Likely valid products**: We will consider two product names to be similar if they differ by 1 to 5 characters.
-
--   **Invalid entries**: We will consider two product names to be invalid if they differ by more than 5 characters.
+::: panel-tabset
+##### Likely valid products
 
 ```{r}
-#| label: categorize unmapped products
+#| label: categorize unmapped products in Likely valid products
 
-data <- unmapped_products |> 
-  stringdist_left_join(alias_product_c, by = c("raw_product" = "alias"), max_dist = 5, distance_col = "distance")
+likely_valid_products <- unmapped_products |>
+  select(raw_product, provider_id) |>
+  stringdist_left_join(
+    alias_product_c, 
+    by = c("raw_product" = "alias"), 
+    method = "jw",
+    max_dist = 0.2,
+    distance_col = "distance") |> 
+  arrange(raw_product, distance) |>
+  group_by(raw_product, provider_id) |>
+  slice(1) |> 
+  ungroup() |>
+  filter(!is.na(mapped_product))
+
+# table of the likely valid products (i select only the relevant columns)
+kbl(likely_valid_products |> select(raw_product, alias, mapped_product, distance)) |> 
+  kable_styling(fixed_thead = T,
+                bootstrap_options = c("hover")) |> 
+  scroll_box(height = "500px")
 ```
+
+
+
+##### Invalid entries
+
+```{r}
+#| label: Invalid entries
+
+invalid_entries <- unmapped_products |>
+  select(raw_product, provider_id) |>
+  stringdist_left_join(
+    alias_product_c, 
+    by = c("raw_product" = "alias"), 
+    method = "jw",
+    max_dist = 0.2,
+    distance_col = "distance") |> 
+  arrange(raw_product, distance) |>
+  group_by(raw_product, provider_id) |>
+  slice(1) |>
+  ungroup() |>
+  filter(is.na(mapped_product))
+
+# table of the likely valid products
+kbl(invalid_entries |> select(raw_product, alias, mapped_product, distance)) |> 
+  kable_styling(fixed_thead = T,
+                bootstrap_options = c("hover")) |> 
+  scroll_box(height = "500px")
+```
+:::
+
+#### **Conclusion after handling unmapped values**
+
+After categorizing the unmapped products, we have two dataframes:
+
+-   `likely_valid_products` : dataframe with the **`{r} nrow(likely_valid_products)`** likely valid products that have been mapped with the fuzzy matching method.
+
+-   `invalid_entries` : dataframe with the **`{r} nrow(invalid_entries)`** invalid entries that could not be mapped even with the fuzzy matching approach.
