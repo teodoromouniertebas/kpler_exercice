@@ -209,7 +209,7 @@ glimpse(raw_product_c)
 
 ## Mapping
 
-To build an application that automates the data cleaning and manipulation process, we’ll start by handling the task for this specific case. Then, we’ll turn each step into reusable functions that can be integrated into the application. That’s why we’ll begin with the first part: data normalization, followed by the third part: handling unmapped data, before moving on to developing the full application.
+To build an application that automates the data cleaning and manipulation process, we’ll start by handling the task for this specific case. That’s why we’ll begin with the first part: **data normalization**, followed by the third part: **handling unmapped data**, before moving on to developing the full **application**.
 
 <br>
 
@@ -227,7 +227,7 @@ alias_product_c <- alias_product_c |>
   select(alias_id, alias, mapped_product, product_id) |> 
   distinct()
 
-# left join the raw_product_c with the alias_product_c:
+# left join the raw_product_c with the alias_product_c
 mapped_products <- raw_product_c |> left_join(alias_product_c, 
                              by = c("raw_product" = "alias")) |> 
   filter(!is.na(mapped_product))
@@ -269,7 +269,7 @@ After the mapping, we have two dataframes:
 
 #### **Handling unmapped values**
 
-We will use the `fuzzjoin` library to suggest matches between unmatched product names and known aliases using string similarity. This will help us categorize unmapped products into two groups, **likely valid products** and **invalid entries**.
+We will use the `fuzzjoin` library to suggest matches between unmatched product names and aliases using string similarity. This will help us categorize unmapped products into two groups, **likely valid products** and **invalid entries**.
 
 We will use the Jaro-Winkler distance method to find similar strings. The `stringdist_left_join()` function will be used to join the `unmapped_products` dataframe with the `alias_product_c` dataframe based on the similarity of the product names.
 
@@ -358,6 +358,7 @@ library(bslib)
 # Load alias mapping file
 alias_product <- read_csv("data/product_alias.csv")
 
+# UI part
 ui <- page_sidebar(
   theme = bs_theme(
     version = 5,
@@ -380,7 +381,6 @@ ui <- page_sidebar(
     downloadButton("download_unmatched", "Download unmapped products", class = "btn-light")
   ),
 
-  # Contenu principal
   navs_tab_card(
     nav_panel("Mapped products", DTOutput("cleaned_table")),
     nav_panel("Fuzzy join products", DTOutput("likely_table")),
@@ -388,6 +388,8 @@ ui <- page_sidebar(
   )
 )
 
+
+# server part
 server <- function(input, output, session) {
   raw_data <- reactiveVal()
   cleaned_data <- reactiveVal()
@@ -568,6 +570,8 @@ observeEvent(input$raw_file, {
   )
 }
 
+
+# Run the application
 shinyApp(ui, server)
 
 ```
