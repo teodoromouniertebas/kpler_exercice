@@ -1,6 +1,7 @@
 ---
 title: "Kpler Technical Exercise"
 author: "Teodoro Mounier Tebas"
+date: last-modified
 format:
   html:
     code-fold: show
@@ -8,9 +9,10 @@ format:
     toc: true
     toc-location: left
     toc-depth: 2
-    theme: cosmo
+    theme: [cosmo, custom.scss]
     fontsize: 1em
     linestretch: 1.7
+    linkcolor: "#FF5349"
     grid:
       sidebar-width: 300px
       body-width: 1000px
